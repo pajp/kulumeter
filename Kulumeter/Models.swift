@@ -7,6 +7,7 @@ struct DailyRide: Identifiable, Codable, Equatable {
     var distanceKilometers: Double
     var durationSeconds: TimeInterval
     var isElectric: Bool
+    var routeSegments: [[RoutePoint]] = []
 
     var dateString: String {
         Self.dateFormatter.string(from: date)
@@ -32,6 +33,11 @@ struct DailyRide: Identifiable, Codable, Equatable {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+}
+
+struct RoutePoint: Codable, Equatable {
+    let latitude: Double
+    let longitude: Double
 }
 
 struct KilometrikisaSettings: Codable, Equatable {

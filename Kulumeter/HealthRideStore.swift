@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import HealthKit
 
@@ -15,7 +16,8 @@ final class HealthRideStore {
 
         let workoutType = HKObjectType.workoutType()
         let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceCycling)
-        var readTypes: Set<HKObjectType> = [workoutType]
+        let routeType = HKSeriesType.workoutRoute()
+        var readTypes: Set<HKObjectType> = [workoutType, routeType]
         if let distanceType {
             readTypes.insert(distanceType)
         }
@@ -56,12 +58,77 @@ final class HealthRideStore {
             }
             existing.durationSeconds += workout.duration
             existing.isElectric = markElectric
+            existing.routeSegments.append(contentsOf: try await fetchRouteSegments(for: workout))
             totals[day] = existing
         }
 
         return totals.values
             .filter { $0.distanceKilometers > 0 || $0.durationSeconds > 0 }
             .sorted { $0.date < $1.date }
+    }
+
+    private func fetchRouteSegments(for workout: HKWorkout) async throws -> [[RoutePoint]] {
+        let routes = try await fetchRoutes(for: workout)
+        var segments: [[RoutePoint]] = []
+
+        for route in routes {
+            let points = try await fetchPoints(for: route)
+            if points.count > 1 {
+                segments.append(points)
+            }
+        }
+
+        return segments
+    }
+
+    private func fetchRoutes(for workout: HKWorkout) async throws -> [HKWorkoutRoute] {
+        try await withCheckedThrowingContinuation { continuation in
+            let routeType = HKSeriesType.workoutRoute()
+            let predicate = HKQuery.predicateForObjects(from: workout)
+            let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+            let query = HKSampleQuery(
+                sampleType: routeType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                continuation.resume(returning: samples as? [HKWorkoutRoute] ?? [])
+            }
+
+            store.execute(query)
+        }
+    }
+
+    private func fetchPoints(for route: HKWorkoutRoute) async throws -> [RoutePoint] {
+        try await withCheckedThrowingContinuation { continuation in
+            var points: [RoutePoint] = []
+            let query = HKWorkoutRouteQuery(route: route) { _, locations, done, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                if let locations {
+                    points.append(contentsOf: locations.map {
+                        RoutePoint(
+                            latitude: $0.coordinate.latitude,
+                            longitude: $0.coordinate.longitude
+                        )
+                    })
+                }
+
+                if done {
+                    continuation.resume(returning: points)
+                }
+            }
+
+            store.execute(query)
+        }
     }
 }
 

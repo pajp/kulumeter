@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct ContentView: View {
@@ -139,39 +140,107 @@ private struct RideRow: View {
     let isLogged: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(ride.dateString)
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(ride.dateString)
+                        .font(.headline)
 
-                Text("\(ride.roundedDistance, specifier: "%.2f") km")
-                    .foregroundStyle(.secondary)
+                    Text("\(ride.roundedDistance, specifier: "%.2f") km")
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(ride.hours) h \(ride.minutes) min")
+                        .font(.subheadline)
+
+                    if ride.isElectric {
+                        Text("E-bike")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if isLogged {
+                        Text("Already logged")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("\(ride.hours) h \(ride.minutes) min")
-                    .font(.subheadline)
-
-                if ride.isElectric {
-                    Text("E-bike")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if isLogged {
-                    Text("Already logged")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            if ride.hasRoute {
+                DailyRouteMap(ride: ride)
+                    .frame(height: 150)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .allowsHitTesting(false)
             }
         }
         .contentShape(Rectangle())
         .padding(.vertical, 4)
+    }
+}
+
+private struct DailyRouteMap: View {
+    let ride: DailyRide
+
+    var body: some View {
+        Map(initialPosition: .region(ride.routeRegion)) {
+            ForEach(Array(ride.routeSegments.enumerated()), id: \.offset) { _, segment in
+                MapPolyline(coordinates: segment.map(\.coordinate))
+                    .stroke(.blue, lineWidth: 4)
+            }
+        }
+        .mapStyle(.standard(elevation: .flat))
+    }
+}
+
+private extension DailyRide {
+    var hasRoute: Bool {
+        routeSegments.contains { $0.count > 1 }
+    }
+
+    var routeRegion: MKCoordinateRegion {
+        let points = routeSegments.flatMap { $0 }
+        guard let first = points.first else {
+            return MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384),
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            )
+        }
+
+        var minLatitude = first.latitude
+        var maxLatitude = first.latitude
+        var minLongitude = first.longitude
+        var maxLongitude = first.longitude
+
+        for point in points.dropFirst() {
+            minLatitude = min(minLatitude, point.latitude)
+            maxLatitude = max(maxLatitude, point.latitude)
+            minLongitude = min(minLongitude, point.longitude)
+            maxLongitude = max(maxLongitude, point.longitude)
+        }
+
+        let latitudeDelta = max((maxLatitude - minLatitude) * 1.35, 0.01)
+        let longitudeDelta = max((maxLongitude - minLongitude) * 1.35, 0.01)
+
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: (minLatitude + maxLatitude) / 2,
+                longitude: (minLongitude + maxLongitude) / 2
+            ),
+            span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
+        )
+    }
+}
+
+private extension RoutePoint {
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 }
 
