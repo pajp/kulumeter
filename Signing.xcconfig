@@ -1,0 +1,3 @@
+// Change these values for your Apple Developer account before building on a device.
+KULUMETER_DEVELOPMENT_TEAM = 7BJ49E34RD
+KULUMETER_BUNDLE_IDENTIFIER = nu.dll.kulumeter

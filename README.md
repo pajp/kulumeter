@@ -11,17 +11,19 @@ includes the HealthKit capability.
 1. Open `Kulumeter.xcodeproj` in Xcode.
 2. Select the `Kulumeter` project in the navigator, then select the `Kulumeter` app
    target.
-3. Open the `Signing & Capabilities` tab.
-4. Select your Apple developer team.
-5. Change the bundle identifier from `nu.dll.kulumeter` to an identifier you own,
-   such as `com.example.kulumeter`.
-6. Keep `Automatically manage signing` enabled, or select a provisioning profile
+3. Open `Signing.xcconfig`.
+4. Set `KULUMETER_DEVELOPMENT_TEAM` to your Apple developer team ID.
+5. Set `KULUMETER_BUNDLE_IDENTIFIER` to an identifier you own, such as
+   `com.example.kulumeter`.
+6. Open the `Signing & Capabilities` tab and confirm the app target is using your
+   team and bundle identifier from the xcconfig file.
+7. Keep `Automatically manage signing` enabled, or select a provisioning profile
    manually if your team manages profiles outside Xcode.
-7. Make sure the `HealthKit` capability is present. If it is missing, add it with
+8. Make sure the `HealthKit` capability is present. If it is missing, add it with
    `+ Capability`.
-8. In the Apple Developer portal, confirm that the app identifier has HealthKit
+9. In the Apple Developer portal, confirm that the app identifier has HealthKit
    enabled if you manage identifiers manually.
-9. Build and run on a physical iPhone. Apple Health data and HealthKit authorization
+10. Build and run on a physical iPhone. Apple Health data and HealthKit authorization
    are not useful on a generic simulator setup.
 
 The project already includes `Kulumeter/Kulumeter.entitlements` with the HealthKit

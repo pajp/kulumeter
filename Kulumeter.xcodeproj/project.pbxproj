@@ -24,6 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		3AFDF5B92FCC90000039A084 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		3AFDF58F2FCC84980039A084 /* Kulumeter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kulumeter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AFDF59C2FCC849B0039A084 /* KulumeterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KulumeterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AFDF5A62FCC849B0039A084 /* KulumeterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KulumeterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -75,6 +76,7 @@
 		3AFDF5862FCC84980039A084 = {
 			isa = PBXGroup;
 			children = (
+				3AFDF5B92FCC90000039A084 /* Signing.xcconfig */,
 				3AFDF5912FCC84980039A084 /* Kulumeter */,
 				3AFDF59F2FCC849B0039A084 /* KulumeterTests */,
 				3AFDF5A92FCC849B0039A084 /* KulumeterUITests */,
@@ -271,6 +273,7 @@
 /* Begin XCBuildConfiguration section */
 		3AFDF5AE2FCC849B0039A084 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3AFDF5B92FCC90000039A084 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -304,7 +307,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 7BJ49E34RD;
+				DEVELOPMENT_TEAM = "$(KULUMETER_DEVELOPMENT_TEAM)";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -335,6 +338,7 @@
 		};
 		3AFDF5AF2FCC849B0039A084 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3AFDF5B92FCC90000039A084 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -368,7 +372,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 7BJ49E34RD;
+				DEVELOPMENT_TEAM = "$(KULUMETER_DEVELOPMENT_TEAM)";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -392,13 +396,14 @@
 		};
 		3AFDF5B12FCC849B0039A084 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3AFDF5B92FCC90000039A084 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Kulumeter/Kulumeter.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7BJ49E34RD;
+				DEVELOPMENT_TEAM = "$(KULUMETER_DEVELOPMENT_TEAM)";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Kulumeter reads cycling workouts and cycling distance from Apple Health to upload daily totals to Kilometrikisa.";
@@ -412,7 +417,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nu.dll.kulumeter;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KULUMETER_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -426,13 +431,14 @@
 		};
 		3AFDF5B22FCC849B0039A084 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3AFDF5B92FCC90000039A084 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Kulumeter/Kulumeter.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7BJ49E34RD;
+				DEVELOPMENT_TEAM = "$(KULUMETER_DEVELOPMENT_TEAM)";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Kulumeter reads cycling workouts and cycling distance from Apple Health to upload daily totals to Kilometrikisa.";
@@ -446,7 +452,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nu.dll.kulumeter;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KULUMETER_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -460,15 +466,16 @@
 		};
 		3AFDF5B42FCC849B0039A084 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3AFDF5B92FCC90000039A084 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7BJ49E34RD;
+				DEVELOPMENT_TEAM = "$(KULUMETER_DEVELOPMENT_TEAM)";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nu.dll.KulumeterTests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KULUMETER_BUNDLE_IDENTIFIER).Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -482,15 +489,16 @@
 		};
 		3AFDF5B52FCC849B0039A084 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3AFDF5B92FCC90000039A084 /* Signing.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7BJ49E34RD;
+				DEVELOPMENT_TEAM = "$(KULUMETER_DEVELOPMENT_TEAM)";
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nu.dll.KulumeterTests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KULUMETER_BUNDLE_IDENTIFIER).Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -504,13 +512,14 @@
 		};
 		3AFDF5B72FCC849B0039A084 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3AFDF5B92FCC90000039A084 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7BJ49E34RD;
+				DEVELOPMENT_TEAM = "$(KULUMETER_DEVELOPMENT_TEAM)";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nu.dll.KulumeterUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KULUMETER_BUNDLE_IDENTIFIER).UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -524,13 +533,14 @@
 		};
 		3AFDF5B82FCC849B0039A084 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 3AFDF5B92FCC90000039A084 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7BJ49E34RD;
+				DEVELOPMENT_TEAM = "$(KULUMETER_DEVELOPMENT_TEAM)";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nu.dll.KulumeterUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(KULUMETER_BUNDLE_IDENTIFIER).UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
