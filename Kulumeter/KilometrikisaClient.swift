@@ -178,11 +178,13 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
     private func updateDistance(_ ride: DailyRide, contestID: String, session: KilometrikisaSession) async throws {
         let url = baseURL.appending(path: "/contest/log-save/")
         var request = authenticatedPostRequest(url: url, refererPath: "/contest/log/", session: session)
+        let roundedDistance = (ride.distanceKilometers * 100).rounded() / 100
+        let dateString = Self.kilometrikisaDateString(for: ride.date)
         request.httpBody = formBody([
             "contest_id": contestID,
-            "km_amount": String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), ride.roundedDistance),
+            "km_amount": String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), roundedDistance),
             "is_electric": ride.isElectric ? "1" : "0",
-            "km_date": ride.dateString,
+            "km_date": dateString,
             "csrfmiddlewaretoken": session.csrfToken
         ])
         try await submit(request)
@@ -191,15 +193,28 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
     private func updateMinutes(_ ride: DailyRide, contestID: String, session: KilometrikisaSession) async throws {
         let url = baseURL.appending(path: "/contest/minute-log-save/")
         var request = authenticatedPostRequest(url: url, refererPath: "/contest/log/", session: session)
+        let totalSeconds = Int(ride.durationSeconds)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let dateString = Self.kilometrikisaDateString(for: ride.date)
         request.httpBody = formBody([
             "contest_id": contestID,
-            "hours": "\(ride.hours)",
-            "minutes": "\(ride.minutes)",
+            "hours": "\(hours)",
+            "minutes": "\(minutes)",
             "is_electric": ride.isElectric ? "1" : "0",
-            "date": ride.dateString,
+            "date": dateString,
             "csrfmiddlewaretoken": session.csrfToken
         ])
         try await submit(request)
+    }
+
+    nonisolated private static func kilometrikisaDateString(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     private func authenticatedPostRequest(url: URL, refererPath: String, session: KilometrikisaSession) -> URLRequest {
