@@ -58,15 +58,20 @@ final class AppViewModel: ObservableObject {
     }
 
     func importRides() async {
-        state = .importing
+        state = .authorizingHealth
         do {
+            await Task.yield()
             saveSettings()
             try await healthStore.requestAuthorization()
+            state = .loadingHealthWorkouts
+            await Task.yield()
             let imported = try await healthStore.fetchCyclingTotals(
                 from: startDate,
                 to: endDate,
                 markElectric: settings.defaultElectric
-            )
+            ) { [weak self] current, total in
+                self?.state = .importingHealth(current: current, total: total)
+            }
             rides = imported
             loggedRideIDs = []
 

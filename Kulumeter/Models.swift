@@ -47,7 +47,9 @@ struct KilometrikisaSettings: Codable, Equatable {
 
 enum UploadState: Equatable {
     case idle
-    case importing
+    case authorizingHealth
+    case loadingHealthWorkouts
+    case importingHealth(current: Int, total: Int)
     case loggingIn
     case discoveringContest
     case checkingExistingLogs
@@ -57,9 +59,18 @@ enum UploadState: Equatable {
 
     var isWorking: Bool {
         switch self {
-        case .importing, .loggingIn, .discoveringContest, .checkingExistingLogs, .uploading:
+        case .authorizingHealth, .loadingHealthWorkouts, .importingHealth, .loggingIn, .discoveringContest, .checkingExistingLogs, .uploading:
             return true
         case .idle, .done, .failed:
+            return false
+        }
+    }
+
+    var isImportingHealth: Bool {
+        switch self {
+        case .authorizingHealth, .loadingHealthWorkouts, .importingHealth:
+            return true
+        case .idle, .loggingIn, .discoveringContest, .checkingExistingLogs, .uploading, .done, .failed:
             return false
         }
     }

@@ -56,11 +56,38 @@ struct ContentView: View {
             Button {
                 Task { await viewModel.importRides() }
             } label: {
-                Label("Import Cycling Workouts", systemImage: "heart.text.square")
+                if viewModel.state.isImportingHealth {
+                    Label("Importing Cycling Workouts", systemImage: "hourglass")
+                } else {
+                    Label("Import Cycling Workouts", systemImage: "heart.text.square")
+                }
             }
             .disabled(viewModel.state.isWorking)
+
+            importProgressView
         } header: {
             Text("Apple Health")
+        }
+    }
+
+    @ViewBuilder
+    private var importProgressView: some View {
+        switch viewModel.state {
+        case .authorizingHealth:
+            ProgressView("Requesting Apple Health access")
+        case .loadingHealthWorkouts:
+            ProgressView("Loading cycling workouts")
+        case .importingHealth(let current, let total):
+            ProgressView(
+                value: Double(current),
+                total: Double(max(total, 1))
+            ) {
+                Text("Reading Apple Health")
+            } currentValueLabel: {
+                Text("Workout \(current) of \(total)")
+            }
+        default:
+            EmptyView()
         }
     }
 
@@ -98,12 +125,8 @@ struct ContentView: View {
     @ViewBuilder
     private var statusSection: some View {
         switch viewModel.state {
-        case .idle:
+        case .idle, .authorizingHealth, .loadingHealthWorkouts, .importingHealth:
             EmptyView()
-        case .importing:
-            Section {
-                ProgressView("Reading Apple Health")
-            }
         case .loggingIn:
             Section {
                 ProgressView("Logging in to Kilometrikisa")
@@ -191,8 +214,11 @@ private struct DailyRouteMap: View {
     var body: some View {
         Map(initialPosition: .region(ride.routeRegion)) {
             ForEach(Array(ride.routeSegments.enumerated()), id: \.offset) { _, segment in
-                MapPolyline(coordinates: segment.map(\.coordinate))
-                    .stroke(.blue, lineWidth: 4)
+                MapPolyline(coordinates: segment.smoothedForDisplay.map(\.coordinate))
+                    .stroke(
+                        .blue,
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
+                    )
             }
         }
         .mapStyle(.standard(elevation: .flat))
@@ -241,6 +267,49 @@ private extension DailyRide {
 private extension RoutePoint {
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+private extension Array where Element == RoutePoint {
+    var smoothedForDisplay: [RoutePoint] {
+        guard count > 3 else {
+            return self
+        }
+
+        var points = self
+        for _ in 0..<5 {
+            points = points.chaikinSmoothed()
+        }
+        return points
+    }
+
+    private func chaikinSmoothed() -> [RoutePoint] {
+        guard count > 2 else {
+            return self
+        }
+
+        var result: [RoutePoint] = [self[0]]
+        result.reserveCapacity((count * 2) - 1)
+
+        for index in 0..<(count - 1) {
+            let first = self[index]
+            let second = self[index + 1]
+            result.append(
+                RoutePoint(
+                    latitude: (first.latitude * 0.75) + (second.latitude * 0.25),
+                    longitude: (first.longitude * 0.75) + (second.longitude * 0.25)
+                )
+            )
+            result.append(
+                RoutePoint(
+                    latitude: (first.latitude * 0.25) + (second.latitude * 0.75),
+                    longitude: (first.longitude * 0.25) + (second.longitude * 0.75)
+                )
+            )
+        }
+
+        result.append(self[count - 1])
+        return result
     }
 }
 

@@ -25,7 +25,12 @@ final class HealthRideStore {
         try await store.requestAuthorization(toShare: [], read: readTypes)
     }
 
-    func fetchCyclingTotals(from startDate: Date, to endDate: Date, markElectric: Bool) async throws -> [DailyRide] {
+    func fetchCyclingTotals(
+        from startDate: Date,
+        to endDate: Date,
+        markElectric: Bool,
+        progress: @escaping @MainActor (_ current: Int, _ total: Int) -> Void
+    ) async throws -> [DailyRide] {
         guard isHealthDataAvailable else {
             throw HealthRideError.unavailable
         }
@@ -44,7 +49,9 @@ final class HealthRideStore {
         let calendar = Calendar.current
         var totals: [Date: DailyRide] = [:]
 
-        for workout in workouts {
+        for (index, workout) in workouts.enumerated() {
+            progress(index + 1, workouts.count)
+
             let day = calendar.startOfDay(for: workout.startDate)
             var existing = totals[day] ?? DailyRide(
                 date: day,
