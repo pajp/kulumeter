@@ -1,6 +1,9 @@
 import Foundation
+import os
 
 final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
+    private static let logger = Logger(subsystem: "nu.dll.kulumeter", category: "KilometrikisaClient")
+
     private let baseURL = URL(string: "https://www.kilometrikisa.fi")!
     private let cookieStorage = HTTPCookieStorage()
     private lazy var session: URLSession = {
@@ -86,6 +89,20 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
         try await updateMinutes(ride, contestID: contestID, session: session)
     }
 
+    func fetchTeamRanking(session: KilometrikisaSession, currentUsername: String) async throws -> TeamRanking {
+        let teamPath = try await discoverTeamPath(session: session)
+        Self.logger.info("Loading Kilometrikisa team ranking from \(teamPath, privacy: .public)")
+        let data = try await fetchAuthenticated(path: teamPath, refererPath: "/accounts/index/", session: session)
+        let html = String(decoding: data, as: UTF8.self)
+        Self.logger.info("Fetched team page \(teamPath, privacy: .public), \(data.count, privacy: .public) bytes")
+        guard let ranking = Self.parseTeamRanking(from: html, path: teamPath, currentUsername: currentUsername) else {
+            Self.logger.error("Could not parse team ranking from \(teamPath, privacy: .public)")
+            throw KilometrikisaError.teamRankingNotFound
+        }
+        Self.logger.info("Parsed \(ranking.rows.count, privacy: .public) team ranking rows for \(ranking.name, privacy: .public)")
+        return ranking
+    }
+
     func fetchLoggedDates(contestID: String, from startDate: Date, to endDate: Date, session: KilometrikisaSession) async throws -> Set<String> {
         var components = URLComponents(url: baseURL.appending(path: "/contest/log_list_json/\(contestID)/"), resolvingAgainstBaseURL: false)
         components?.queryItems = [
@@ -123,6 +140,36 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
         return Self.parseLoggedDates(from: data)
     }
 
+    private func discoverTeamPath(session: KilometrikisaSession) async throws -> String {
+        let candidatePages = [
+            "/accounts/index/",
+            "/accounts/profile/",
+            "/contest/log/"
+        ]
+
+        for path in candidatePages {
+            Self.logger.info("Looking for Kilometrikisa team link on \(path, privacy: .public)")
+            let data = try await fetchAuthenticated(path: path, refererPath: "/accounts/index/", session: session)
+            let html = String(decoding: data, as: UTF8.self)
+            if let teamPath = Self.parseTeamPath(from: html) {
+                Self.logger.info("Found team path \(teamPath, privacy: .public) on \(path, privacy: .public)")
+                return teamPath
+            }
+            if let profilePath = Self.parseProfilePath(from: html) {
+                Self.logger.info("Found profile path \(profilePath, privacy: .public) on \(path, privacy: .public)")
+                let profileData = try await fetchAuthenticated(path: profilePath, refererPath: path, session: session)
+                let profileHTML = String(decoding: profileData, as: UTF8.self)
+                if let teamPath = Self.parseTeamPath(from: profileHTML) {
+                    Self.logger.info("Found team path \(teamPath, privacy: .public) on profile \(profilePath, privacy: .public)")
+                    return teamPath
+                }
+            }
+        }
+
+        Self.logger.error("No Kilometrikisa team path found on account/profile/log pages")
+        throw KilometrikisaError.teamNotFound
+    }
+
     func discoverContestID(session: KilometrikisaSession) async throws -> String {
         let url = baseURL.appending(path: "/contest/log/")
         var request = URLRequest(url: url)
@@ -147,6 +194,38 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
             return try await discoverContestIDFromAccountPage(session: session)
         }
         return contestID
+    }
+
+    private func fetchAuthenticated(path: String, refererPath: String, session: KilometrikisaSession) async throws -> Data {
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL,
+              let refererURL = URL(string: refererPath, relativeTo: baseURL)?.absoluteURL else {
+            throw KilometrikisaError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(refererURL.absoluteString, forHTTPHeaderField: "Referer")
+        request.setValue("csrftoken=\(session.csrfToken); sessionid=\(session.sessionID);", forHTTPHeaderField: "Cookie")
+
+        let (data, response) = try await self.session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw KilometrikisaError.invalidResponse
+        }
+        Self.logger.info("GET \(path, privacy: .public) returned HTTP \(httpResponse.statusCode, privacy: .public), \(data.count, privacy: .public) bytes")
+        guard httpResponse.statusCode != 403 else {
+            throw KilometrikisaError.sessionExpired
+        }
+        guard (200..<400).contains(httpResponse.statusCode) else {
+            let body = String(decoding: data.prefix(240), as: UTF8.self)
+            throw KilometrikisaError.requestFailed(httpResponse.statusCode, body)
+        }
+
+        let body = String(decoding: data, as: UTF8.self)
+        if body.contains(#"name="password""#) || body.contains(#"id="id_password""#) {
+            throw KilometrikisaError.sessionExpired
+        }
+
+        return data
     }
 
     private func discoverContestIDFromAccountPage(session: KilometrikisaSession) async throws -> String {
@@ -299,6 +378,328 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
         }
 
         return nil
+    }
+
+    static func parseTeamPath(from html: String) -> String? {
+        let patterns = [
+            #"href\s*=\s*["'](/teams/[^"']+/)["']"#,
+            #"href\s*=\s*["'](https://www\.kilometrikisa\.fi/teams/[^"']+/)["']"#
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+            let range = NSRange(html.startIndex..<html.endIndex, in: html)
+            for match in regex.matches(in: html, range: range) {
+                guard match.numberOfRanges > 1,
+                      let pathRange = Range(match.range(at: 1), in: html) else {
+                    continue
+                }
+
+                let value = String(html[pathRange])
+                let path: String
+                if value.hasPrefix("/") {
+                    path = value
+                } else if let url = URL(string: value), let urlPath = url.path.nonEmptyPath {
+                    path = urlPath
+                } else {
+                    path = value
+                }
+
+                guard isActualTeamPath(path) else {
+                    logger.info("Ignoring non-team Kilometrikisa teams path \(path, privacy: .public)")
+                    continue
+                }
+                return path
+            }
+        }
+
+        return nil
+    }
+
+    private static func isActualTeamPath(_ path: String) -> Bool {
+        let normalized = path.lowercased()
+        guard normalized.hasPrefix("/teams/") else {
+            return false
+        }
+
+        let reservedPaths: Set<String> = [
+            "/teams/register/",
+            "/teams/create/",
+            "/teams/favorites/",
+            "/teams/join/",
+            "/teams/search/",
+            "/teams/",
+        ]
+        if reservedPaths.contains(normalized) {
+            return false
+        }
+
+        return normalized.split(separator: "/").count == 2
+    }
+
+    static func parseProfilePath(from html: String) -> String? {
+        let patterns = [
+            #"href\s*=\s*["'](/accounts/profile/[^"']*)["']"#,
+            #"href\s*=\s*["'](/profiles/[^"']+/)["']"#,
+            #"href\s*=\s*["'](/users/[^"']+/)["']"#
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+            let range = NSRange(html.startIndex..<html.endIndex, in: html)
+            guard let match = regex.firstMatch(in: html, range: range),
+                  match.numberOfRanges > 1,
+                  let pathRange = Range(match.range(at: 1), in: html) else {
+                continue
+            }
+            return String(html[pathRange])
+        }
+
+        return nil
+    }
+
+    static func parseTeamRanking(from html: String, path: String, currentUsername: String? = nil) -> TeamRanking? {
+        let tableHTML = extractKilometrikisaRiderTable(from: html)
+        let rows = parseTeamRankingRows(from: tableHTML, currentUsername: currentUsername)
+        logger.info("Team ranking parse for \(path, privacy: .public): \(rows.count, privacy: .public) rows")
+        guard !rows.isEmpty else {
+            let preview = stripHTML(String(tableHTML.prefix(800)))
+            logger.error("Team ranking parse found no rows. Preview: \(preview, privacy: .public)")
+            return nil
+        }
+
+        return TeamRanking(
+            name: parseTeamName(from: html) ?? teamNameFromPath(path),
+            path: path,
+            rows: rows
+        )
+    }
+
+    private static func extractKilometrikisaRiderTable(from html: String) -> String {
+        guard let tableRegex = try? NSRegularExpression(pattern: #"<table\b[\s\S]*?</table>"#, options: [.caseInsensitive]) else {
+            return html
+        }
+
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        let tables = tableRegex.matches(in: html, range: range).compactMap { match -> String? in
+            guard let tableRange = Range(match.range, in: html) else {
+                return nil
+            }
+            return String(html[tableRange])
+        }
+
+        logger.info("Found \(tables.count, privacy: .public) table elements on team page")
+        if let riderTable = tables.first(where: { table in
+            let normalized = stripHTML(table).lowercased()
+            return normalized.contains("km yht") && (normalized.contains("ajopäivät") || normalized.contains("ajopaivat"))
+        }) {
+            let preview = stripHTML(String(riderTable.prefix(800)))
+            logger.info("Selected rider table by header. Preview: \(preview, privacy: .public)")
+            return riderTable
+        }
+
+        if let tableWithRows = tables.max(by: {
+            parseTeamRankingRows(from: $0, currentUsername: nil).count < parseTeamRankingRows(from: $1, currentUsername: nil).count
+        }),
+           !parseTeamRankingRows(from: tableWithRows, currentUsername: nil).isEmpty {
+            let preview = stripHTML(String(tableWithRows.prefix(800)))
+            logger.info("Selected rider table by parseable rows. Preview: \(preview, privacy: .public)")
+            return tableWithRows
+        }
+
+        logger.error("No rider table recognized; falling back to full HTML")
+        return html
+    }
+
+    private static func parseTeamRankingRows(from html: String, currentUsername: String?) -> [TeamRankingRow] {
+        guard let rowRegex = try? NSRegularExpression(pattern: #"<tr\b([^>]*)>([\s\S]*?)</tr>"#, options: [.caseInsensitive]),
+              let cellRegex = try? NSRegularExpression(pattern: #"<t[dh]\b[^>]*>([\s\S]*?)</t[dh]>"#, options: [.caseInsensitive]) else {
+            return []
+        }
+
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        return rowRegex.matches(in: html, range: range).compactMap { rowMatch in
+            guard rowMatch.numberOfRanges > 2,
+                  let attributesRange = Range(rowMatch.range(at: 1), in: html),
+                  let cellsRange = Range(rowMatch.range(at: 2), in: html) else {
+                return nil
+            }
+
+            let attributes = String(html[attributesRange])
+            let rowHTML = String(html[cellsRange])
+            let cellRange = NSRange(rowHTML.startIndex..<rowHTML.endIndex, in: rowHTML)
+            let cells = cellRegex.matches(in: rowHTML, range: cellRange).compactMap { cellMatch -> String? in
+                guard cellMatch.numberOfRanges > 1,
+                      let contentRange = Range(cellMatch.range(at: 1), in: rowHTML) else {
+                    return nil
+                }
+                return stripHTML(String(rowHTML[contentRange]))
+            }
+
+            guard cells.count >= 6,
+                  let rank = firstInteger(in: cells[0]),
+                  let rideDays = firstInteger(in: cells[5]) else {
+                return nil
+            }
+
+            return TeamRankingRow(
+                rank: rank,
+                name: cells[1],
+                totalKilometers: cells[2],
+                muscleKilometers: cells[3],
+                electricKilometers: cells[4],
+                rideDays: rideDays,
+                isCurrentUser: containsCurrentUserMarker(in: attributes + " " + rowHTML) || isCurrentUserName(cells[1], currentUsername: currentUsername)
+            )
+        }
+    }
+
+    private static func isCurrentUserName(_ riderName: String, currentUsername: String?) -> Bool {
+        guard let currentUsername else {
+            return false
+        }
+
+        let normalizedRiderName = normalizeUsername(riderName)
+        let normalizedCurrentUsername = normalizeUsername(currentUsername)
+        guard !normalizedRiderName.isEmpty, !normalizedCurrentUsername.isEmpty else {
+            return false
+        }
+
+        return normalizedRiderName == normalizedCurrentUsername
+    }
+
+    private static func normalizeUsername(_ value: String) -> String {
+        stripHTML(value)
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "", options: .regularExpression)
+    }
+
+    private static func containsCurrentUserMarker(in html: String) -> Bool {
+        let normalized = html.lowercased()
+        let markers = [
+            "current",
+            "highlight",
+            "selected",
+            "active",
+            "success",
+            "warning",
+            "own-row",
+            "own_user",
+            "own-user",
+            "background-color",
+            "background:",
+            "#ffff",
+            "yellow"
+        ]
+
+        return markers.contains { normalized.contains($0) }
+    }
+
+    private static func parseTeamName(from html: String) -> String? {
+        let patterns = [
+            #"<h1[^>]*>([\s\S]*?)</h1>"#,
+            #"<h2[^>]*>([\s\S]*?)</h2>"#,
+            #"<title[^>]*>([\s\S]*?)</title>"#
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+            let range = NSRange(html.startIndex..<html.endIndex, in: html)
+            for match in regex.matches(in: html, range: range) {
+                guard match.numberOfRanges > 1,
+                      let nameRange = Range(match.range(at: 1), in: html) else {
+                    continue
+                }
+                if let name = cleanTeamNameCandidate(String(html[nameRange])) {
+                    return name
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func cleanTeamNameCandidate(_ html: String) -> String? {
+        var name = stripHTML(html)
+            .replacingOccurrences(of: #"(?i)\bjoukkue\b"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"(?i)\bteam\b"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-–|")))
+
+        if let separatorRange = name.range(of: #"(?i)\s+[|–-]\s+kilometrikisa\b.*$"#, options: .regularExpression) {
+            name.removeSubrange(separatorRange)
+            name = name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "-–|")))
+        }
+
+        guard !name.isEmpty else {
+            return nil
+        }
+
+        let genericNames = [
+            "kilometrikisa",
+            "minuuttikisa",
+            "tietoa",
+            "tulokset"
+        ]
+        guard !genericNames.contains(name.lowercased()) else {
+            return nil
+        }
+
+        return name
+    }
+
+    private static func teamNameFromPath(_ path: String) -> String {
+        guard let slug = path.split(separator: "/").last else {
+            return "Team"
+        }
+
+        return slug
+            .split(separator: "-")
+            .map { $0.capitalized }
+            .joined(separator: "-")
+    }
+
+    private static func stripHTML(_ html: String) -> String {
+        let withoutTags = html.replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+        return decodeHTMLEntities(withoutTags)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func firstInteger(in text: String) -> Int? {
+        guard let regex = try? NSRegularExpression(pattern: #"[0-9]+"#) else {
+            return nil
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, range: range),
+              let matchRange = Range(match.range, in: text) else {
+            return nil
+        }
+        return Int(text[matchRange])
+    }
+
+    private static func decodeHTMLEntities(_ text: String) -> String {
+        var result = text
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&auml;", with: "ä")
+            .replacingOccurrences(of: "&ouml;", with: "ö")
+            .replacingOccurrences(of: "&Auml;", with: "Ä")
+            .replacingOccurrences(of: "&Ouml;", with: "Ö")
+        result = result.replacingOccurrences(of: "&#228;", with: "ä")
+        result = result.replacingOccurrences(of: "&#246;", with: "ö")
+        result = result.replacingOccurrences(of: "&#196;", with: "Ä")
+        result = result.replacingOccurrences(of: "&#214;", with: "Ö")
+        return result
     }
 
     static func parseCSRFToken(from html: String) -> String? {
@@ -558,6 +959,8 @@ enum KilometrikisaError: LocalizedError {
     case loginFailed
     case sessionExpired
     case contestIDNotFound
+    case teamNotFound
+    case teamRankingNotFound
     case requestFailed(Int, String)
 
     var errorDescription: String? {
@@ -572,8 +975,18 @@ enum KilometrikisaError: LocalizedError {
             return "Kilometrikisa rejected the upload because the session expired."
         case .contestIDNotFound:
             return "Could not find an active Kilometrikisa contest ID on the log page."
+        case .teamNotFound:
+            return "Could not find your Kilometrikisa team from your profile."
+        case .teamRankingNotFound:
+            return "Could not read the Kilometrikisa team ranking table."
         case .requestFailed(let status, let body):
             return "Kilometrikisa request failed with HTTP \(status). \(body)"
         }
+    }
+}
+
+private extension String {
+    var nonEmptyPath: String? {
+        isEmpty ? nil : self
     }
 }

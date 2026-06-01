@@ -1,10 +1,3 @@
-//
-//  KulumeterUITestsLaunchTests.swift
-//  KulumeterUITests
-//
-//  Created by Rasmus Sten on 31.5.2026.
-//
-
 import XCTest
 
 final class KulumeterUITestsLaunchTests: XCTestCase {

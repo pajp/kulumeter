@@ -24,10 +24,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		3AFDF5B92FCC90000039A084 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		3AFDF58F2FCC84980039A084 /* Kulumeter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kulumeter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AFDF59C2FCC849B0039A084 /* KulumeterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KulumeterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AFDF5A62FCC849B0039A084 /* KulumeterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KulumeterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3AFDF5B92FCC90000039A084 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */

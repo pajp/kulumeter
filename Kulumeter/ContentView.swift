@@ -8,6 +8,7 @@ struct ContentView: View {
         NavigationStack {
             List {
                 accountSection
+                teamSection
                 importSection
                 ridesSection
                 statusSection
@@ -45,6 +46,37 @@ struct ContentView: View {
             Text("Kilometrikisa")
         } footer: {
             Text("The password is stored in the iOS Keychain. The active contest ID is discovered from Kilometrikisa when uploading.")
+        }
+    }
+
+    private var teamSection: some View {
+        Section {
+            Button {
+                Task { await viewModel.loadTeamRanking() }
+            } label: {
+                if case .loadingTeamRanking = viewModel.state {
+                    HStack {
+                        ProgressView()
+                        Text("Loading Team Ranking")
+                    }
+                } else {
+                    Label("Load My Team Ranking", systemImage: "person.3.sequence")
+                }
+            }
+            .disabled(!viewModel.canLoadTeamRanking)
+
+            if let ranking = viewModel.teamRanking {
+                LabeledContent("Team", value: ranking.name)
+                LabeledContent("Riders", value: "\(ranking.rows.count)")
+
+                ForEach(ranking.rows) { row in
+                    TeamRankingRowView(row: row)
+                }
+            }
+        } header: {
+            Text("Team Ranking")
+        } footer: {
+            Text("The team is discovered from your Kilometrikisa profile after login.")
         }
     }
 
@@ -139,6 +171,10 @@ struct ContentView: View {
             Section {
                 ProgressView("Checking Kilometrikisa log")
             }
+        case .loadingTeamRanking:
+            Section {
+                ProgressView("Loading team ranking")
+            }
         case .uploading(let current, let total):
             Section {
                 ProgressView("Uploading \(current) of \(total)")
@@ -154,6 +190,49 @@ struct ContentView: View {
                     .foregroundStyle(.red)
             }
         }
+    }
+}
+
+private struct TeamRankingRowView: View {
+    let row: TeamRankingRow
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text("\(row.rank)")
+                    .font(.headline.monospacedDigit())
+                    .frame(minWidth: 34, alignment: .leading)
+
+                Text(row.name)
+                    .font(.headline)
+
+                if row.isCurrentUser {
+                    Text("You")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.orange.opacity(0.16), in: Capsule())
+                }
+
+                Spacer()
+
+                Text("\(row.totalKilometers) km")
+                    .font(.subheadline.monospacedDigit())
+            }
+
+            HStack {
+                Label("\(row.muscleKilometers) muscle", systemImage: "bicycle")
+                Spacer()
+                Label("\(row.electricKilometers) e-bike", systemImage: "bolt")
+                Spacer()
+                Label("\(row.rideDays) days", systemImage: "calendar")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 6)
+        .listRowBackground(row.isCurrentUser ? Color.yellow.opacity(0.22) : nil)
     }
 }
 

@@ -1,10 +1,3 @@
-//
-//  KulumeterApp.swift
-//  Kulumeter
-//
-//  Created by Rasmus Sten on 31.5.2026.
-//
-
 import SwiftUI
 
 @main

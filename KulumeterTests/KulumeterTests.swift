@@ -2,9 +2,6 @@
 //  KulumeterTests.swift
 //  KulumeterTests
 //
-//  Created by Rasmus Sten on 31.5.2026.
-//
-
 import Foundation
 import Testing
 @testable import Kulumeter
@@ -53,6 +50,130 @@ struct KulumeterTests {
         """#
 
         #expect(KilometrikisaClient.parseCSRFToken(from: html) == "abc123MaskedToken")
+    }
+
+    @Test func parsesTeamPathFromProfileLink() async throws {
+        let html = #"""
+        <a href="/teams/example-cycling/">Example Cycling</a>
+        """#
+
+        #expect(KilometrikisaClient.parseTeamPath(from: html) == "/teams/example-cycling/")
+    }
+
+    @Test func ignoresTeamRegistrationPathWhenParsingTeamPath() async throws {
+        let html = #"""
+        <a href="/teams/register/">Ilmoita joukkue</a>
+        <a href="/teams/favorites/">Suosikit</a>
+        <a href="/teams/example-cycling/">Example Cycling</a>
+        """#
+
+        #expect(KilometrikisaClient.parseTeamPath(from: html) == "/teams/example-cycling/")
+    }
+
+    @Test func parsesTeamRankingTable() async throws {
+        let html = #"""
+        <html>
+            <h1>Example Cycling</h1>
+            <table>
+                <thead>
+                    <tr><th>#</th><th>Nimi</th><th>Km yht.</th><th>Km (lihas)</th><th>Km (sähkö)</th><th>Ajopäivät</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>13</td><td>Rider One</td><td>226,0</td><td>226,0</td><td>0,0</td><td>4</td></tr>
+                    <tr class="highlight"><td>14</td><td>Current Rider</td><td>178,4</td><td>178,4</td><td>0,0</td><td>19</td></tr>
+                </tbody>
+            </table>
+        </html>
+        """#
+
+        let ranking = try #require(KilometrikisaClient.parseTeamRanking(from: html, path: "/teams/example-cycling/"))
+        #expect(ranking.name == "Example Cycling")
+        #expect(ranking.rows.count == 2)
+        #expect(ranking.rows[1].rank == 14)
+        #expect(ranking.rows[1].name == "Current Rider")
+        #expect(ranking.rows[1].totalKilometers == "178,4")
+        #expect(ranking.rows[1].isCurrentUser)
+    }
+
+    @Test func ignoresSiteHeadingWhenParsingTeamRankingName() async throws {
+        let html = #"""
+        <html>
+            <h1>KILOMETRIKISA</h1>
+            <h1>Example Cycling</h1>
+            <table>
+                <thead>
+                    <tr><th>#</th><th>Nimi</th><th>Km yht.</th><th>Km (lihas)</th><th>Km (sähkö)</th><th>Ajopäivät</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>14</td><td>Current Rider</td><td>178,4</td><td>178,4</td><td>0,0</td><td>19</td></tr>
+                </tbody>
+            </table>
+        </html>
+        """#
+
+        let ranking = try #require(KilometrikisaClient.parseTeamRanking(from: html, path: "/teams/example-cycling/"))
+        #expect(ranking.name == "Example Cycling")
+    }
+
+    @Test func parsesCurrentUserHighlightFromTableCellStyle() async throws {
+        let html = #"""
+        <html>
+            <h1>Example Cycling</h1>
+            <table>
+                <thead>
+                    <tr><th>#</th><th>Nimi</th><th>Km yht.</th><th>Km (lihas)</th><th>Km (sähkö)</th><th>Ajopäivät</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>13</td><td>Rider One</td><td>226,0</td><td>226,0</td><td>0,0</td><td>4</td></tr>
+                    <tr><td style="background-color: #ffffcc">14</td><td>Current Rider</td><td>178,4</td><td>178,4</td><td>0,0</td><td>19</td></tr>
+                </tbody>
+            </table>
+        </html>
+        """#
+
+        let ranking = try #require(KilometrikisaClient.parseTeamRanking(from: html, path: "/teams/example-cycling/"))
+        #expect(!ranking.rows[0].isCurrentUser)
+        #expect(ranking.rows[1].isCurrentUser)
+    }
+
+    @Test func parsesCurrentUserHighlightFromUsername() async throws {
+        let html = #"""
+        <html>
+            <h1>Example Cycling</h1>
+            <table>
+                <thead>
+                    <tr><th>#</th><th>Nimi</th><th>Km yht.</th><th>Km (lihas)</th><th>Km (sähkö)</th><th>Ajopäivät</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>13</td><td>Rider One</td><td>226,0</td><td>226,0</td><td>0,0</td><td>4</td></tr>
+                    <tr><td>14</td><td>Sample User</td><td>178,4</td><td>178,4</td><td>0,0</td><td>19</td></tr>
+                </tbody>
+            </table>
+        </html>
+        """#
+
+        let ranking = try #require(KilometrikisaClient.parseTeamRanking(from: html, path: "/teams/example-cycling/", currentUsername: "sampleuser"))
+        #expect(!ranking.rows[0].isCurrentUser)
+        #expect(ranking.rows[1].isCurrentUser)
+    }
+
+    @Test func formatsTeamNameFromPathWhenPageNameIsGeneric() async throws {
+        let html = #"""
+        <html>
+            <h1>KILOMETRIKISA</h1>
+            <table>
+                <thead>
+                    <tr><th>#</th><th>Nimi</th><th>Km yht.</th><th>Km (lihas)</th><th>Km (sähkö)</th><th>Ajopäivät</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>14</td><td>Current Rider</td><td>178,4</td><td>178,4</td><td>0,0</td><td>19</td></tr>
+                </tbody>
+            </table>
+        </html>
+        """#
+
+        let ranking = try #require(KilometrikisaClient.parseTeamRanking(from: html, path: "/teams/example-cycling/"))
+        #expect(ranking.name == "Example-Cycling")
     }
 
     @Test func parsesLoggedDatesFromJSONFeed() async throws {

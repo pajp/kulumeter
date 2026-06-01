@@ -11,6 +11,7 @@ final class AppViewModel: ObservableObject {
     @Published var selectedRideIDs: Set<String> = []
     @Published var loggedRideIDs: Set<String> = []
     @Published var discoveredContestID: String?
+    @Published var teamRanking: TeamRanking?
     @Published var state: UploadState = .idle
 
     private let healthStore = HealthRideStore()
@@ -47,6 +48,12 @@ final class AppViewModel: ObservableObject {
         !settings.username.isEmpty &&
             !password.isEmpty &&
             !selectedRideIDs.isEmpty &&
+            !state.isWorking
+    }
+
+    var canLoadTeamRanking: Bool {
+        !settings.username.isEmpty &&
+            !password.isEmpty &&
             !state.isWorking
     }
 
@@ -138,6 +145,25 @@ final class AppViewModel: ObservableObject {
                 try await client.upload(ride, contestID: contestID, session: session)
             }
             state = .done("Uploaded \(uploads.count) day\(uploads.count == 1 ? "" : "s") to Kilometrikisa contest \(contestID).")
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    func loadTeamRanking() async {
+        guard canLoadTeamRanking else {
+            return
+        }
+
+        saveSettings()
+        state = .loadingTeamRanking
+
+        do {
+            let session = try await client.login(username: settings.username, password: password)
+            teamRanking = try await client.fetchTeamRanking(session: session, currentUsername: settings.username)
+            if let teamRanking {
+                state = .done("Loaded \(teamRanking.name) ranking.")
+            }
         } catch {
             state = .failed(error.localizedDescription)
         }

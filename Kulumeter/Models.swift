@@ -45,6 +45,24 @@ struct KilometrikisaSettings: Codable, Equatable {
     var defaultElectric: Bool = false
 }
 
+struct TeamRanking: Equatable {
+    let name: String
+    let path: String
+    let rows: [TeamRankingRow]
+}
+
+struct TeamRankingRow: Identifiable, Equatable {
+    var id: Int { rank }
+
+    let rank: Int
+    let name: String
+    let totalKilometers: String
+    let muscleKilometers: String
+    let electricKilometers: String
+    let rideDays: Int
+    let isCurrentUser: Bool
+}
+
 enum UploadState: Equatable {
     case idle
     case authorizingHealth
@@ -53,13 +71,14 @@ enum UploadState: Equatable {
     case loggingIn
     case discoveringContest
     case checkingExistingLogs
+    case loadingTeamRanking
     case uploading(current: Int, total: Int)
     case done(String)
     case failed(String)
 
     var isWorking: Bool {
         switch self {
-        case .authorizingHealth, .loadingHealthWorkouts, .importingHealth, .loggingIn, .discoveringContest, .checkingExistingLogs, .uploading:
+        case .authorizingHealth, .loadingHealthWorkouts, .importingHealth, .loggingIn, .discoveringContest, .checkingExistingLogs, .loadingTeamRanking, .uploading:
             return true
         case .idle, .done, .failed:
             return false
@@ -70,7 +89,7 @@ enum UploadState: Equatable {
         switch self {
         case .authorizingHealth, .loadingHealthWorkouts, .importingHealth:
             return true
-        case .idle, .loggingIn, .discoveringContest, .checkingExistingLogs, .uploading, .done, .failed:
+        case .idle, .loggingIn, .discoveringContest, .checkingExistingLogs, .loadingTeamRanking, .uploading, .done, .failed:
             return false
         }
     }
