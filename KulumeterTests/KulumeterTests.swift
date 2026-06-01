@@ -59,11 +59,78 @@ struct KulumeterTests {
         let data = #"""
         [
             {"id": 1, "start": "2026-05-29", "title": "9.92 km"},
-            {"id": 2, "km_date": "2026-05-31", "title": "11.11 km"}
+            {"id": 2, "km_date": "2026-05-31", "title": "11,11 km"}
         ]
         """#.data(using: .utf8)!
 
         #expect(KilometrikisaClient.parseLoggedDates(from: data) == ["2026-05-29", "2026-05-31"])
+    }
+
+    @Test func ignoresUnloggedDatesFromJSONFeed() async throws {
+        let data = #"""
+        {
+            "start": "2026-06-01",
+            "end": "2026-06-02",
+            "events": [
+                {"id": 1, "start": "2026-06-01", "title": "0 km"},
+                {"id": 2, "start": "2026-06-02", "title": ""},
+                {"id": 3, "km_date": "2026-06-03", "km_amount": 9.5}
+            ]
+        }
+        """#.data(using: .utf8)!
+
+        #expect(KilometrikisaClient.parseLoggedDates(from: data) == ["2026-06-03"])
+    }
+
+    @Test func parsesLoggedDatesFromCalendarInputHTML() async throws {
+        let data = #"""
+        [
+            {
+                "start": "2026-05-31",
+                "title": "<form class=\"km-log-form\"><input type=\"hidden\" name=\"contest_id\" value=\"55\"><input class=\"km-amount\" name=\"km_amount\" value=\"11,1\"></form>"
+            },
+            {
+                "start": "2026-06-01",
+                "title": "<form class=\"km-log-form\"><input class=\"km-amount\" name=\"km_amount\" value=\"0\"></form>"
+            }
+        ]
+        """#.data(using: .utf8)!
+
+        #expect(KilometrikisaClient.parseLoggedDates(from: data) == ["2026-05-31"])
+    }
+
+    @Test func parsesLoggedDatesFromNestedCalendarInputHTML() async throws {
+        let data = #"""
+        [
+            {
+                "start": "2026-05-29T00:00:00",
+                "className": "fc-event-hori fc-event-start fc-event-end",
+                "metadata": {
+                    "html": "<span class=&quot;ui-spinner&quot;><input class=&quot;ui-spinner-input km-amount&quot; name=&quot;km_amount&quot; value=&quot;9,9&quot;></span>"
+                }
+            },
+            {
+                "start": "2026-05-30T00:00:00",
+                "metadata": {
+                    "html": "<input class=&quot;km-amount&quot; name=&quot;km_amount&quot; value=&quot;0&quot;>"
+                }
+            }
+        ]
+        """#.data(using: .utf8)!
+
+        #expect(KilometrikisaClient.parseLoggedDates(from: data) == ["2026-05-29"])
+    }
+
+    @Test func parsesLoggedDatesFromPlainFullCalendarTitles() async throws {
+        let data = #"""
+        [
+            {"start": "2026-05-28T00:00:00", "title": "2,4"},
+            {"start": "2026-05-29T00:00:00", "title": "9.9"},
+            {"start": "2026-05-30T00:00:00", "title": "0"}
+        ]
+        """#.data(using: .utf8)!
+
+        #expect(KilometrikisaClient.parseLoggedDates(from: data) == ["2026-05-28", "2026-05-29"])
     }
 
 }

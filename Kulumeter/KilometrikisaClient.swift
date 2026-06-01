@@ -335,17 +335,21 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
     private static func parseLoggedDates(fromJSONObject object: Any) -> Set<String> {
         var dates = Set<String>()
 
-        if let string = object as? String {
-            dates.formUnion(parseLoggedDates(fromText: string))
-        } else if let array = object as? [Any] {
+        if let array = object as? [Any] {
             for item in array {
                 dates.formUnion(parseLoggedDates(fromJSONObject: item))
             }
         } else if let dictionary = object as? [String: Any] {
+            if dictionary.representsLoggedRide {
+                dates.formUnion(loggedDates(fromEntry: dictionary))
+            }
+
             for (key, value) in dictionary {
                 if key.lowercased().contains("date") || key.lowercased() == "start" || key.lowercased() == "end" {
-                    dates.formUnion(parseLoggedDates(fromJSONObject: value))
-                } else if let nested = value as? [Any] {
+                    continue
+                }
+
+                if let nested = value as? [Any] {
                     dates.formUnion(parseLoggedDates(fromJSONObject: nested))
                 } else if let nested = value as? [String: Any] {
                     dates.formUnion(parseLoggedDates(fromJSONObject: nested))
@@ -356,8 +360,33 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
         return dates
     }
 
+    private static func loggedDates(fromEntry entry: [String: Any]) -> Set<String> {
+        var dates = Set<String>()
+
+        for (key, value) in entry {
+            let normalizedKey = key.lowercased()
+            guard normalizedKey.contains("date") || normalizedKey == "start" else {
+                continue
+            }
+
+            dates.formUnion(parseLoggedDates(fromJSONObjectTextValue: value))
+        }
+
+        return dates
+    }
+
+    private static func parseLoggedDates(fromJSONObjectTextValue value: Any) -> Set<String> {
+        if let string = value as? String {
+            return parseLoggedDates(fromText: string)
+        }
+        if let number = value as? NSNumber {
+            return parseLoggedDates(fromText: "\(number)")
+        }
+        return []
+    }
+
     private static func parseLoggedDates(fromText text: String) -> Set<String> {
-        guard let regex = try? NSRegularExpression(pattern: #"\b([0-9]{4}-[0-9]{2}-[0-9]{2})\b"#) else {
+        guard let regex = try? NSRegularExpression(pattern: #"\b([0-9]{4}-[0-9]{2}-[0-9]{2})(?:\b|T)"#) else {
             return []
         }
 
@@ -370,6 +399,151 @@ final class KilometrikisaClient: NSObject, URLSessionTaskDelegate {
             }
             return String(text[dateRange])
         })
+    }
+}
+
+private extension Dictionary where Key == String, Value == Any {
+    var representsLoggedRide: Bool {
+        containsPositiveNumericLogValue ||
+            Self.containsPositiveTextLogValue(in: Array(values)) ||
+            containsPositivePlainAmountValue
+    }
+
+    private var containsPositiveNumericLogValue: Bool {
+        contains { key, value in
+            let normalizedKey = key.lowercased()
+            guard normalizedKey.contains("km") ||
+                    normalizedKey.contains("distance") ||
+                    normalizedKey.contains("amount") ||
+                    normalizedKey == "hours" ||
+                    normalizedKey == "minutes" else {
+                return false
+            }
+
+            return Self.positiveDouble(from: value) != nil
+        }
+    }
+
+    private static func containsPositiveTextLogValue(in values: [Any]) -> Bool {
+        for value in values {
+            if let text = value as? String, containsPositiveLoggedAmount(in: text) {
+                return true
+            }
+
+            if let array = value as? [Any], containsPositiveTextLogValue(in: array) {
+                return true
+            }
+
+            if let dictionary = value as? [String: Any],
+               containsPositiveTextLogValue(in: Array(dictionary.values)) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private static func positiveDouble(from value: Any) -> Double? {
+        if let number = value as? NSNumber {
+            let double = number.doubleValue
+            return double > 0 ? double : nil
+        }
+
+        guard let string = value as? String else {
+            return nil
+        }
+
+        let normalized = string.replacingOccurrences(of: ",", with: ".")
+        guard let double = Double(normalized.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
+        }
+        return double > 0 ? double : nil
+    }
+
+    private var containsPositivePlainAmountValue: Bool {
+        contains { key, value in
+            let normalizedKey = key.lowercased()
+            guard normalizedKey == "title" ||
+                    normalizedKey == "value" ||
+                    normalizedKey == "content" ||
+                    normalizedKey == "html" else {
+                return false
+            }
+
+            return Self.positivePlainAmount(from: value) != nil
+        }
+    }
+
+    private static func positivePlainAmount(from value: Any) -> Double? {
+        guard let string = value as? String else {
+            return nil
+        }
+
+        let normalized = string
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ",", with: ".")
+        guard let double = Double(normalized) else {
+            return nil
+        }
+        return double > 0 ? double : nil
+    }
+
+    private static func containsPositiveLoggedAmount(in text: String) -> Bool {
+        if containsPositiveInputValue(named: "km_amount", in: text) {
+            return true
+        }
+
+        guard let regex = try? NSRegularExpression(
+            pattern: #"([0-9]+(?:[,.][0-9]+)?)\s*(?:km|kilometri|kilomet)"#,
+            options: [.caseInsensitive]
+        ) else {
+            return false
+        }
+
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: range).contains { match in
+            guard match.numberOfRanges > 1,
+                  let amountRange = Range(match.range(at: 1), in: text) else {
+                return false
+            }
+
+            let amount = text[amountRange].replacingOccurrences(of: ",", with: ".")
+            return (Double(amount) ?? 0) > 0
+        }
+    }
+
+    private static func containsPositiveInputValue(named name: String, in text: String) -> Bool {
+        let escapedName = NSRegularExpression.escapedPattern(for: name)
+        guard let inputRegex = try? NSRegularExpression(pattern: #"<input\b[^>]*>"#, options: [.caseInsensitive]),
+              let nameRegex = try? NSRegularExpression(
+                pattern: #"\bname\s*=\s*(?:["']|&quot;)?\#(escapedName)(?:["']|&quot;)?"#,
+                options: [.caseInsensitive]
+              ),
+              let valueRegex = try? NSRegularExpression(
+                pattern: #"\bvalue\s*=\s*(?:["']|&quot;)?([0-9]+(?:[,.][0-9]+)?)(?:["']|&quot;)?"#,
+                options: [.caseInsensitive]
+              ) else {
+            return false
+        }
+
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return inputRegex.matches(in: text, range: range).contains { inputMatch in
+            guard let textTagRange = Range(inputMatch.range, in: text) else {
+                return false
+            }
+
+            let tag = String(text[textTagRange])
+            let tagRange = NSRange(tag.startIndex..<tag.endIndex, in: tag)
+            guard nameRegex.firstMatch(in: tag, range: tagRange) != nil,
+                  let valueMatch = valueRegex.firstMatch(in: tag, range: tagRange),
+                  valueMatch.numberOfRanges > 1,
+                  let amountRange = Range(valueMatch.range(at: 1), in: tag) else {
+                return false
+            }
+
+            let amount = tag[amountRange].replacingOccurrences(of: ",", with: ".")
+            return (Double(amount) ?? 0) > 0
+        }
     }
 }
 
