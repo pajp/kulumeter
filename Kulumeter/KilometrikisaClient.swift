@@ -974,7 +974,7 @@ enum KilometrikisaError: LocalizedError {
         case .sessionExpired:
             return "Kilometrikisa rejected the upload because the session expired."
         case .contestIDNotFound:
-            return "Could not find an active Kilometrikisa contest ID on the log page."
+            return "Could not prepare the Kilometrikisa log."
         case .teamNotFound:
             return "Could not find your Kilometrikisa team from your profile."
         case .teamRankingNotFound:

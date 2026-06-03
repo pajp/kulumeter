@@ -39,5 +39,5 @@ entitlement and an Apple Health usage description in the target build settings.
    unselected.
 6. Upload the selected days.
 
-Passwords are stored in the iOS Keychain. The app talks directly to Kilometrikisa
-and does not require a separate server.
+The app remembers your login between launches, talks directly to Kilometrikisa, and
+does not require a separate server.

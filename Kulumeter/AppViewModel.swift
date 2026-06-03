@@ -13,22 +13,28 @@ final class AppViewModel: ObservableObject {
     @Published var discoveredContestID: String?
     @Published var teamRanking: TeamRanking?
     @Published var state: UploadState = .idle
+    @Published var isLoginFormVisible: Bool
 
     private let healthStore = HealthRideStore()
     private let client = KilometrikisaClient()
     private let settingsKey = "KilometrikisaSettings"
     private let keychainService = "nu.dll.Kulumeter.Kilometrikisa"
     private let keychainPasswordAccount = "password"
+    private var hasAutomaticallyImported = false
 
     init() {
+        let initialSettings: KilometrikisaSettings
         if let data = UserDefaults.standard.data(forKey: settingsKey),
            let decoded = try? JSONDecoder().decode(KilometrikisaSettings.self, from: data) {
-            settings = decoded
+            initialSettings = decoded
         } else {
-            settings = KilometrikisaSettings()
+            initialSettings = KilometrikisaSettings()
         }
 
-        password = (try? KeychainStore.read(service: keychainService, account: keychainPasswordAccount)) ?? ""
+        let storedPassword = (try? KeychainStore.read(service: keychainService, account: keychainPasswordAccount)) ?? ""
+        settings = initialSettings
+        password = storedPassword
+        isLoginFormVisible = initialSettings.username.isEmpty || storedPassword.isEmpty
 
         let calendar = Calendar.current
         let now = Date()
@@ -57,11 +63,39 @@ final class AppViewModel: ObservableObject {
             !state.isWorking
     }
 
+    var hasStoredCredentials: Bool {
+        !settings.username.isEmpty && !password.isEmpty && !isLoginFormVisible
+    }
+
     func saveSettings() {
         if let data = try? JSONEncoder().encode(settings) {
             UserDefaults.standard.set(data, forKey: settingsKey)
         }
-        try? KeychainStore.save(password, service: keychainService, account: keychainPasswordAccount)
+        if password.isEmpty {
+            try? KeychainStore.delete(service: keychainService, account: keychainPasswordAccount)
+        } else {
+            try? KeychainStore.save(password, service: keychainService, account: keychainPasswordAccount)
+        }
+        isLoginFormVisible = settings.username.isEmpty || password.isEmpty
+    }
+
+    func logout() {
+        settings.username = ""
+        password = ""
+        discoveredContestID = nil
+        teamRanking = nil
+        loggedRideIDs = []
+        isLoginFormVisible = true
+        saveSettings()
+        state = .idle
+    }
+
+    func importDefaultPeriodIfNeeded() async {
+        guard !hasAutomaticallyImported, hasStoredCredentials else {
+            return
+        }
+        hasAutomaticallyImported = true
+        await importRides()
     }
 
     func importRides() async {
@@ -119,6 +153,18 @@ final class AppViewModel: ObservableObject {
             } else {
                 state = .done("Imported \(imported.count) day\(imported.count == 1 ? "" : "s"). \(loggedRideIDs.count) already logged day\(loggedRideIDs.count == 1 ? "" : "s") left unselected.")
             }
+        } catch KilometrikisaError.loginFailed {
+            revealLoginAfterFailedAuthentication()
+            if !rides.isEmpty {
+                selectedRideIDs = Set(rides.map(\.id))
+            }
+            state = .failed(KilometrikisaError.loginFailed.localizedDescription)
+        } catch KilometrikisaError.sessionExpired {
+            revealLoginAfterFailedAuthentication()
+            if !rides.isEmpty {
+                selectedRideIDs = Set(rides.map(\.id))
+            }
+            state = .failed(KilometrikisaError.sessionExpired.localizedDescription)
         } catch {
             selectedRideIDs = []
             state = .failed(error.localizedDescription)
@@ -144,7 +190,7 @@ final class AppViewModel: ObservableObject {
                 state = .uploading(current: index + 1, total: uploads.count)
                 try await client.upload(ride, contestID: contestID, session: session)
             }
-            state = .done("Uploaded \(uploads.count) day\(uploads.count == 1 ? "" : "s") to Kilometrikisa contest \(contestID).")
+            state = .done("Uploaded \(uploads.count) day\(uploads.count == 1 ? "" : "s") to Kilometrikisa.")
         } catch {
             state = .failed(error.localizedDescription)
         }
@@ -175,5 +221,11 @@ final class AppViewModel: ObservableObject {
         } else {
             selectedRideIDs.insert(ride.id)
         }
+    }
+
+    private func revealLoginAfterFailedAuthentication() {
+        password = ""
+        try? KeychainStore.delete(service: keychainService, account: keychainPasswordAccount)
+        isLoginFormVisible = true
     }
 }

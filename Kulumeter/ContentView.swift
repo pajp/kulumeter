@@ -8,10 +8,10 @@ struct ContentView: View {
         NavigationStack {
             List {
                 accountSection
-                teamSection
                 importSection
                 ridesSection
                 statusSection
+                teamSection
             }
             .navigationTitle("Kulumeter")
             .toolbar {
@@ -24,28 +24,37 @@ struct ContentView: View {
                     .disabled(!viewModel.canUpload)
                 }
             }
+            .task {
+                await viewModel.importDefaultPeriodIfNeeded()
+            }
         }
     }
 
     private var accountSection: some View {
         Section {
-            TextField("Username", text: $viewModel.settings.username)
-                .textContentType(.username)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+            if viewModel.isLoginFormVisible {
+                TextField("Username", text: $viewModel.settings.username)
+                    .textContentType(.username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
 
-            SecureField("Password", text: $viewModel.password)
-                .textContentType(.password)
+                SecureField("Password", text: $viewModel.password)
+                    .textContentType(.password)
+            } else {
+                LabeledContent("Username", value: viewModel.settings.username)
+
+                Button(role: .destructive) {
+                    viewModel.logout()
+                } label: {
+                    Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            }
 
             Toggle("Mark uploads as e-bike", isOn: $viewModel.settings.defaultElectric)
-
-            if let contestID = viewModel.discoveredContestID {
-                LabeledContent("Contest ID", value: contestID)
-            }
         } header: {
             Text("Kilometrikisa")
         } footer: {
-            Text("The password is stored in the iOS Keychain. The active contest ID is discovered from Kilometrikisa when uploading.")
+            Text("Use your Kilometrikisa credentials to upload rides and skip days that are already logged.")
         }
     }
 
@@ -76,7 +85,7 @@ struct ContentView: View {
         } header: {
             Text("Team Ranking")
         } footer: {
-            Text("The team is discovered from your Kilometrikisa profile after login.")
+            Text("Your team is loaded from your Kilometrikisa profile.")
         }
     }
 
@@ -165,7 +174,7 @@ struct ContentView: View {
             }
         case .discoveringContest:
             Section {
-                ProgressView("Finding active Kilometrikisa contest")
+                ProgressView("Preparing Kilometrikisa log")
             }
         case .checkingExistingLogs:
             Section {

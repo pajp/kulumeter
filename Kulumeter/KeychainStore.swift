@@ -50,6 +50,19 @@ enum KeychainStore {
         }
         return String(decoding: data, as: UTF8.self)
     }
+
+    static func delete(service: String, account: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.unhandledStatus(status)
+        }
+    }
 }
 
 enum KeychainError: LocalizedError {
